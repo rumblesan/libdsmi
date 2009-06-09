@@ -1,0 +1,7 @@
+*.nds
+*.arm9
+*.elf
+*.a
+*.txt
+build/
+Thumbs.db
