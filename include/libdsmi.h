@@ -79,6 +79,18 @@ extern void dsmi_write_dsbrut(u8 message,u8 data1, u8 data2);
 // Force a MIDI message to be sent over Wifi
 extern void dsmi_write_wifi(u8 message,u8 data1, u8 data2);
 
+// Send a MIDI SYNC Systemmessage over the default interface, see MIDI spec for more details
+extern void dsmi_sync_write(u8 message);
+
+// Force a MIDI SYNC Systemmessage to be sent over DSerial
+extern void dsmi_sync_write_dserial(u8 message);
+
+// Force a MIDI SYNC Systemmessage to be sent over DSBrut
+extern void dsmi_sync_write_dsbrut(u8 message);
+
+// Force a MIDI SYNC Systemmessage to be sent over Wifi
+extern void dsmi_sync_write_wifi(u8 message);
+
 // ------------ OSC WRITE ------------ //
 // OSC messages are sent only over wifi and do not require the dsmidiwifi server application
 //   To send and OSC message:

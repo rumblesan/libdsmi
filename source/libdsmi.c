@@ -205,6 +205,42 @@ extern void dsmi_write_wifi(u8 message,u8 data1, u8 data2)
 }
 
 
+
+// Send a MIDI SYNC System message over the default interface, see MIDI spec for more details
+extern void dsmi_sync_write(u8 message)
+{
+	if(default_interface == DSMI_WIFI)
+		dsmi_sync_write_wifi(message);
+	else if(default_interface == DSMI_BRUT)
+		dsmi_sync_write_dsbrut(message);
+	else if(default_interface == DSMI_SERIAL)
+		dsmi_sync_write_dserial(message);
+}
+
+
+// Force a MIDI SYNC System message to be sent over DSerial
+extern void dsmi_sync_write_dserial(u8 message)
+{
+	char sendbuf[1] = {message};
+	dseUartSendBuffer((char*)&sendbuf, 1, true);
+}
+
+// Force a MIDI SYNC System SYNC System message to be sent over DSBrut
+extern void dsmi_sync_write_dsbrut(u8 message)
+{
+	uint8_t sendbuf[1] = {message};
+	uart_write(sendbuf, 1);
+}
+
+
+// Force a MIDI message to be sent over Wifi
+extern void dsmi_sync_write_wifi(u8 message)
+{
+	char sendbuf[1] = {message};
+	sendto(sock, &sendbuf, 1, 0, (struct sockaddr*)&addr_out_to, sizeof(addr_out_to));
+}
+
+
 // ------------ OSC WRITE ------------ //
 
 // Resets the OSC buffer and sets the destination open sound control address, returns 1 if ok, 0 if address string not valid
