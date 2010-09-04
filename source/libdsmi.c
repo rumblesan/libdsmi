@@ -4,7 +4,7 @@
 #include <sys/socket.h>
 #include <netinet/in.h>
 #include <netdb.h>
-#include <stdio.h>
+
 
 #include "libdsmi.h"
 #include "dserial.h"
@@ -32,6 +32,8 @@ int wifi_enabled = 0;
 int dserial_enabled = 0;
 int dsbrut_enabled = 0;
 
+extern void wifiValue32Handler(u32 value, void* data);
+extern void arm9_synctoarm7();
 
 // ------------ PRIVATE ------------ //
 
@@ -74,10 +76,17 @@ extern int dsmi_connect_dserial(void)
 	if(!dseInit())
 		return 0;
 	
+	//int version = dseVersion();
+	//if(version < 2) {
+	//	printf("Version: DSerial1/2\n");
+	//} else if(version == 2) {
+	//	printf("Version: DSerial Edge\n");
+	//}
+	
 	// Upload firmware if necessary
-	if (!dseMatchFirmware((char*)firmware_bin, firmware_bin_size))
+	if (!dseMatchFirmware((char*)firmware_bin, firmware_bin_end - firmware_bin))
 	{
-		dseUploadFirmware((char *) firmware_bin, firmware_bin_size);
+		dseUploadFirmware((char *) firmware_bin, firmware_bin_end - firmware_bin);
 	}
 	
 	dseBoot();
@@ -88,9 +97,9 @@ extern int dsmi_connect_dserial(void)
 	
 	dseSetModes(ENABLE_CMOS);
 	
-	dseUartSetBaudrate(31250); // MIDI baud rate
+	dseUartSetBaudrate(UART0, 31250); // MIDI baud rate
 	
-	dseUartSetReceiveHandler(dsmi_uart_recv);
+	dseUartSetReceiveHandler(UART0, dsmi_uart_recv);
 	
 	default_interface = DSMI_SERIAL;
 
@@ -115,10 +124,69 @@ extern int dsmi_connect_dsbrut(void)
 }
 
 
+
+void dsmi_timer_50ms(void) {
+    Wifi_Timer(50);
+
+    if(wifi_enabled == 1 && default_interface == DSMI_WIFI)
+    {
+        // Send a keepalive beacon every 3 seconds
+        static u8 counter = 0;
+        counter++;
+        if(counter == 60)
+        {
+            counter = 0;
+            dsmi_write(0, 0, 0);
+        }
+    }
+}
+
+// Modified version of dswifi's init function that uses a custom timer handler
+// In addition to calling Wifi_Timer, new new handler also sends the DSMI keepalive
+// beacon.
+bool dsmi_wifi_init(void) {
+    fifoSetValue32Handler(FIFO_DSWIFI,  wifiValue32Handler, 0);
+
+    u32 wifi_pass = Wifi_Init(WIFIINIT_OPTION_USELED);
+
+    if(!wifi_pass) return false;
+
+    irqSet(IRQ_TIMER3, dsmi_timer_50ms); // setup timer IRQ
+    irqEnable(IRQ_TIMER3);
+
+    Wifi_SetSyncHandler(arm9_synctoarm7); // tell wifi lib to use our handler to notify arm7
+
+    // set timer3
+    TIMER3_DATA = -6553; // 6553.1 * 256 cycles = ~50ms;
+    TIMER3_CR = 0x00C2; // enable, irq, 1/256 clock
+
+    fifoSendAddress(FIFO_DSWIFI, (void *)wifi_pass);
+
+    while(Wifi_CheckInit()==0) {
+        swiWaitForVBlank();
+    }
+
+    int wifiStatus = ASSOCSTATUS_DISCONNECTED;
+
+    Wifi_AutoConnect(); // request connect
+
+    while(wifiStatus != ASSOCSTATUS_ASSOCIATED) {
+        wifiStatus = Wifi_AssocStatus(); // check status
+
+        if(wifiStatus == ASSOCSTATUS_CANNOTCONNECT) return false;
+        swiWaitForVBlank();
+
+    }
+
+    return true;    
+}
+
 extern int dsmi_connect_wifi(void)
 {
+    Wifi_EnableWifi();
 
-	if(!Wifi_InitDefault(WFC_CONNECT)) {
+	if(!dsmi_wifi_init()) {
+        Wifi_DisableWifi();
 		return 0;
 	}
 	
@@ -185,8 +253,8 @@ extern void dsmi_write(u8 message,u8 data1, u8 data2)
 // Force a MIDI message to be sent over DSerial
 extern void dsmi_write_dserial(u8 message,u8 data1, u8 data2)
 {
-	char sendbuf[3] = {message, data1, data2};
-	dseUartSendBuffer((char*)&sendbuf, 3, true);
+	u8 sendbuf[3] = {message, data1, data2};
+	dseUartSendBuffer(UART0, (char*)sendbuf, 3, true);
 }
 
 // Force a MIDI message to be sent over DSBrut
@@ -222,7 +290,7 @@ extern void dsmi_sync_write(u8 message)
 extern void dsmi_sync_write_dserial(u8 message)
 {
 	char sendbuf[1] = {message};
-	dseUartSendBuffer((char*)&sendbuf, 1, true);
+	dseUartSendBuffer(UART0,(char*)&sendbuf, 1, true);
 }
 
 // Force a MIDI SYNC System SYNC System message to be sent over DSBrut
