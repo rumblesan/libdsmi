@@ -1,0 +1,19 @@
+
+An updated version of libdsmi, a Midi library for Nintendo DS homebrew.
+
+
+The original library has support for the DSerial cart as well as Midi and OSC messges over wifi.
+This version also has support for the DSBrut serial IO cartridge.
+
+This isn't yet extensivly tested so I take no responsibility for borked carts, blown DSes or global nuclear armagedeon.
+
+If it does work for you tho, let me know.
+
+
+links to important places
+http://dsmi.tobw.net/
+http://dsbrut.sukzessiv.net/
+http://www.rumblesan.com/
+
+
+guy@notesandvolts.com
